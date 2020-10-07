@@ -1,0 +1,16 @@
+start_date: '2019-01-02'
+end_date: '2020-01-02'
+ohlc: ['Adj Close']
+ohlc_ml: ['Open','High','Low','Close','Adj Close','Volume']
+url_nasdaq: 'https://en.wikipedia.org/wiki/NASDAQ-100'
+url_spx: 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+market_cap: 0
+features: ['sharesOutstanding','priceToBook','fiftyDayAverageChange',
+          'bookValue','twoHundredDayAverageChange',
+          'fiftyTwoWeekLowChange','twoHundredDayAverage',
+          'averageDailyVolume3Month','fiftyDayAverage','marketCap',
+          'averageDailyVolume10Day','fiftyDayAverageChangePercent'
+          ]
+new_db_tickers: True
+new_db_raw_cap: True
+new_db_raw_prices: True

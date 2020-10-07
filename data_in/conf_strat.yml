@@ -1,0 +1,6 @@
+short_ma: 5
+middle_ma: 21
+long_ma: 63
+initial_capital: 100000.0
+sample_ratio: 0.80
+chosen_ticker: 'AAPL'
