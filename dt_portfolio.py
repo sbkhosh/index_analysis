@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import alpha_vantage
 import itertools
 import math
 import matplotlib.pyplot as plt
@@ -10,6 +11,7 @@ import pandas_datareader as pdr
 import requests_cache
 import yaml
 
+from alpha_vantage.timeseries import TimeSeries
 from datetime import datetime, timedelta
 from dt_help import Helper
 from sqlalchemy import create_engine
@@ -35,16 +37,62 @@ class Portfolio():
             self.conf = yaml.load(fnm, Loader=yaml.FullLoader)
         self.rr_symb1 = self.conf.get('rr_symb1')
         self.rr_symb2 = self.conf.get('rr_symb2')
+        self.new_db_alphav_prices = self.conf.get('new_db_alphav_prices')
+        self.freq = self.conf.get('freq')
             
-    def show_frontier(self):
-        df = self.data
-        df.index = pd.to_datetime(df.index)
-        returns1 = df[self.rr_symb1]['Adj Close'].pct_change().fillna(0)
-        returns2 = df[self.rr_symb2]['Adj Close'].pct_change().fillna(0)
+    @Helper.timing
+    def show_frontier_simple(self):
+        symbs = [self.rr_symb1,self.rr_symb2]
 
-        # returns1 = returns1.groupby((returns1.index.month)).apply(lambda x: (1+x).prod()-1)
-        # returns2 = returns2.groupby((returns2.index.month)).apply(lambda x: (1+x).prod()-1)
-        
+        if(self.freq == 'monthly'):
+            attrs = ['Open','High','Low','Close','Adj Close','Volume','Dividend']
+        elif(self.freq == 'daily'):
+            attrs = ['Open','High','Low','Close','Adj Close','Volume','Dividend','Split coeff']
+            
+        midx = pd.MultiIndex.from_product([symbs,attrs],names=('Symbols','Attributes'))
+
+        if(self.new_db_alphav_prices):
+            api_key = os.getenv('ALPHAVANTAGE_API_KEY')
+            ts = TimeSeries(key=api_key, output_format='pandas')
+
+            if(self.freq == 'monthly'):
+                data1, meta_data1 = ts.get_monthly_adjusted(symbol=self.rr_symb1)
+                data2, meta_data2 = ts.get_monthly_adjusted(symbol=self.rr_symb2)
+            elif(self.freq == 'daily'):
+                data1, meta_data1 = ts.get_daily_adjusted(symbol=self.rr_symb1)
+                data2, meta_data2 = ts.get_daily_adjusted(symbol=self.rr_symb2)
+                
+            data1.columns = attrs
+            data2.columns = attrs
+
+            dt_alphav_prices = pd.concat([data1,data2],axis=1)
+            dt_alphav_prices.columns = midx
+            dt_alphav_prices = dt_alphav_prices[::-1]
+            dt_alphav_prices['Dates'] = pd.to_datetime(dt_alphav_prices.index,format='%Y-%m-%d')
+            
+            engine = create_engine("sqlite:///" + self.output_directory + "/dt_alphav_prices.db", echo=False)
+            dt_alphav_prices.to_sql(
+                'dt_alphav_prices',
+                engine,
+                if_exists='replace',
+                index=False
+                )
+        else:
+            engine = create_engine("sqlite:///" + self.output_directory + "/dt_alphav_prices.db", echo=False)
+
+        self.dt_alphav_prices = pd.read_sql_table(
+            'dt_alphav_prices',
+            con=engine,
+            parse_dates={'Dates': {'format': '%Y-%m-%d'}}
+            )
+
+        self.dt_alphav_prices.rename(columns={"('Dates', '')":'Dates'},inplace=True)
+        self.dt_alphav_prices.set_index('Dates',inplace=True)
+        self.dt_alphav_prices.columns = midx
+
+        returns1 = self.dt_alphav_prices[(self.rr_symb1,'Adj Close')].pct_change().fillna(0)
+        returns2 = self.dt_alphav_prices[(self.rr_symb2,'Adj Close')].pct_change().fillna(0)
+
         if(len(returns1) > len(returns2)):
             returns1 = returns1[-len(returns2):]
 
@@ -55,23 +103,14 @@ class Portfolio():
         variance1 = np.var(returns1)
         standard_deviation1 = np.sqrt(variance1)
 
-        #print(f'Mean returns ({symbol1}) = {mean_returns1}')
-        #print(f'Variance ({symbol1}) = {variance1}')
-        #print(f'Standard Deviation ({symbol1}) = {standard_deviation1}')
-
         mean_returns2 = np.mean(returns2)
         variance2 = np.var(returns2)
         standard_deviation2 = np.sqrt(variance2)
-
-        #print(f'Mean returns ({symbol2}) = {mean_returns2}')
-        #print(f'Variance ({symbol2}) = {variance2}')
-        #print(f'Standard Deviation ({symbol2}) = {standard_deviation2}')
 
         correlation = np.corrcoef(returns1, returns2)[0][1]
         print(f'Correlation = {correlation}')
 
         weights = []
-
         for n in range(0, 101):
             weights.append((1 - 0.01 * n, 0 + 0.01 * n))
             
@@ -81,8 +120,7 @@ class Portfolio():
         portfolio_50_50_standard_deviation = None
         portfolio_50_50_returns = None
 
-        # plot_style.scatter()
-
+        plt.figure(figsize=(32,20))
         for w1, w2 in weights:
             returns.append(w1 * mean_returns1 + w2 * mean_returns2)
 
@@ -102,22 +140,19 @@ class Portfolio():
                     portfolio_50_50_returns, marker='x', color='red', alpha=1, s=320)
 
         x_padding = np.average(standard_deviations) / 25
-
         plt.xlim(min(standard_deviations) - x_padding,
                  max(standard_deviations) + x_padding)
 
         y_padding = np.average(returns) / 25
-
         plt.ylim(min(returns) - y_padding, max(returns) + y_padding)
 
+        plt.gca().set_xticks(plt.gca().get_xticks().tolist()) # remove in the future - placed to avoid warning - it is a bug from matplotlib 3.3.1
         plt.gca().set_xticklabels(['{:.2f}%'.format(x*100) for x in plt.gca().get_xticks()])
+        plt.gca().set_yticks(plt.gca().get_yticks().tolist()) # remove in the future - placed to avoid warning - it is a bug from matplotlib 3.3.1
         plt.gca().set_yticklabels(['{:.2f}%'.format(y*100) for y in plt.gca().get_yticks()])
 
         plt.title(f'Efficient Frontier ({self.rr_symb1.upper()} and {self.rr_symb2.upper()})')
 
-        plt.xlabel(f'Risk (Daily)')
-        plt.ylabel(f'Return (Daily)')
-
-        # pathlib.Path('img/frontier2').mkdir(parents=True, exist_ok=True)
-        # plt.savefig(f'img/frontier2/{self.rr_symb1.lower()}-{self.rr_symb2.lower()}.png')
+        plt.xlabel('Risk (' + self.freq.capitalize() + ')')
+        plt.ylabel('Return (' + self.freq.capitalize() + ')')
         plt.show()

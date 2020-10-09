@@ -47,7 +47,7 @@ class HistData():
     def process(self):
         start_date = self.start_date
         end_date = self.end_date
-
+       
         # get the tickers for Nasdaq100
         if(self.new_db_tickers):
             tickers_names = Helper.nasdaq100_tickers(self.url_nasdaq)
@@ -94,18 +94,21 @@ class HistData():
         # select on market cap (threshold set in yaml parameter file)
         selected_tickers = list(self.dt_raw_cap[self.dt_raw_cap['marketCap'] > self.market_cap].index)
         selected_tickers = [el.replace('\n','') for el in selected_tickers]
+
+        attrs = ['Adj Close','Close','High','Open','Low','Volume']
+        symbs = selected_tickers
+        midx = pd.MultiIndex.from_product([attrs,symbs],names=('Attributes', 'Symbols'))
         
         if(self.new_db_raw_prices):
             dt_raw_prices = pdr.DataReader(selected_tickers,'yahoo',start_date,end_date)
-            dt_raw_prices.to_csv(self.output_directory+'/dt_raw_prices.csv')
-            dt_raw_prices = pd.read_csv(self.output_directory+'/dt_raw_prices.csv',header=[0,1],index_col=[0])           
-            dt_raw_prices = dt_raw_prices.unstack()
-
+            dt_raw_prices['Dates'] = pd.to_datetime(dt_raw_prices.index,format='%Y-%m-%d')
+            
             engine = create_engine("sqlite:///" + self.output_directory + "/dt_raw_prices.db", echo=False)
             dt_raw_prices.to_sql(
                 'dt_raw_prices',
                 engine,
                 if_exists='replace',
+                index=False
                 )
         else:
             engine = create_engine("sqlite:///" + self.output_directory + "/dt_raw_prices.db", echo=False)
@@ -113,50 +116,48 @@ class HistData():
         self.dt_raw_prices = pd.read_sql_table(
             'dt_raw_prices',
             con=engine,
+            parse_dates={'Dates': {'format': '%Y-%m-%d'}}
             )
 
+        self.dt_raw_prices.rename(columns={"('Dates', '')":'Dates'},inplace=True)
+        self.dt_raw_prices.set_index('Dates',inplace=True)
+        self.dt_raw_prices.columns = midx
+
         # this removes that tickers that could not be downloaded from pandas datareader
-        self.dt_raw_prices = self.dt_raw_prices[self.dt_raw_prices['0'].notnull()]
+        self.dt_raw_prices = self.dt_raw_prices.dropna(axis=1)
         
-        idx = self.dt_raw_prices['Date']
-        attrs = ['Adj Close','Close','High','Open','Low','Volume']
-        symbs = selected_tickers
-        midx = pd.MultiIndex.from_product([attrs,symbs],names=('Attributes', 'Symbols'))
-        df = pd.pivot_table(self.dt_raw_prices,index=['Date','Attributes','Symbols'],values=['0'])
-        self.dt_raw_prices = df.unstack().unstack()
-        self.dt_raw_prices.columns = self.dt_raw_prices.columns.droplevel()
-
         # select the tickers based on ohlc parameters
-        res = self.dt_raw_prices.loc[:,self.dt_raw_prices.columns.get_level_values(1).isin(self.ohlc)]
-        res = res.stack().reset_index().drop(columns=['Attributes']).set_index('Date')
+        res = self.dt_raw_prices.loc[:,self.dt_raw_prices.columns.get_level_values(0).isin(self.ohlc)]
         self.dt_select = res
-        self.dt_ml = self.dt_raw_prices.loc[:,self.dt_raw_prices.columns.get_level_values(1).isin(self.ohlc_ml)]
-        
+        self.dt_ml = self.dt_raw_prices.loc[:,self.dt_raw_prices.columns.get_level_values(0).isin(self.ohlc_ml)]
+
+        print(isinstance(self.dt_select.columns,pd.MultiIndex))
+        # print(self.dt_select.isnull().sum().groupby('Symbols'))
         # retrieve tickers with missing values/NaN (beyond those that showed no data from the beginning)
-        self.missing_value_tickers = Helper.missing_values_table(self.dt_select)['Missing Value Tickers']
+        # self.missing_value_tickers = Helper.missing_values_table(self.dt_select)['Missing Value Tickers']
         
-        # # here we decide to drop those tickers that have missing values as it will most likely impact the clustering/DBSCAN
-        # # the idea is that we want to have consistency in the form of the time series (no flat zeros and then data or drop dates which
-        # # will reduce the sample necessary for the analysis) 
-        self.dt_select.drop(columns=self.missing_value_tickers,inplace=True)
+        # # # here we decide to drop those tickers that have missing values as it will most likely impact the clustering/DBSCAN
+        # # # the idea is that we want to have consistency in the form of the time series (no flat zeros and then data or drop dates which
+        # # # will reduce the sample necessary for the analysis) 
+        # self.dt_select.drop(columns=self.missing_value_tickers,inplace=True)
 
-        # final tickers given the dropped missing value tickers
-        final_tickers = list(set(self.dt_select.columns) - set(self.missing_value_tickers))
+        # # final tickers given the dropped missing value tickers
+        # final_tickers = list(set(self.dt_select.columns) - set(self.missing_value_tickers))
         
-        # sanity check
-        assert(set(final_tickers) - set(list(self.dt_select.columns))==set())
+        # # sanity check
+        # assert(set(final_tickers) - set(list(self.dt_select.columns))==set())
 
-        # compute returns as (P_t-P_{t-1})/P_{t-1} along with log rturns too
-        self.dt_select[[el+'_rel_ret' for el in final_tickers]] = self.dt_select[final_tickers].apply(lambda x: x.pct_change().fillna(0))
-        self.dt_select[[el+'_log_ret' for el in final_tickers]] = self.dt_select[final_tickers].apply(lambda x: np.log(x).diff().fillna(0))
+        # # compute returns as (P_t-P_{t-1})/P_{t-1} along with log rturns too
+        # self.dt_select[[el+'_rel_ret' for el in final_tickers]] = self.dt_select[final_tickers].apply(lambda x: x.pct_change().fillna(0))
+        # self.dt_select[[el+'_log_ret' for el in final_tickers]] = self.dt_select[final_tickers].apply(lambda x: np.log(x).diff().fillna(0))
 
-        # isolate dataframes used for the clustering step
-        self.dt_clustering_ret = self.dt_select[[el+'_rel_ret' for el in final_tickers]]
-        self.dt_clustering_ret.columns = final_tickers
-        self.dt_clustering_raw = self.dt_select[[el for el in final_tickers]]
+        # # isolate dataframes used for the clustering step
+        # self.dt_clustering_ret = self.dt_select[[el+'_rel_ret' for el in final_tickers]]
+        # self.dt_clustering_ret.columns = final_tickers
+        # self.dt_clustering_raw = self.dt_select[[el for el in final_tickers]]
 
-        # sanity check => no missing values in the returns series
-        assert(len(Helper.missing_values_table(self.dt_select[[el+'_rel_ret' for el in final_tickers]]).values) == 0)
+        # # sanity check => no missing values in the returns series
+        # assert(len(Helper.missing_values_table(self.dt_select[[el+'_rel_ret' for el in final_tickers]]).values) == 0)
 
         # Helper.plot_cumulative_ret(self.dt_select)
         # Helper.plot_cumulative_log_ret(self.dt_select)

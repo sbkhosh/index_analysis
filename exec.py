@@ -34,15 +34,15 @@ if __name__ == '__main__':
     data_obj.read_prm()
     data_obj.process()
     
-    # clutering_obj = Clustering('data_in','data_out','conf_clustering.yml',
-    #                            data_obj.dt_clustering_ret,
-    #                            data_obj.dt_clustering_raw,
-    #                            data_obj.dt_raw_cap)
+    clutering_obj = Clustering('data_in','data_out','conf_clustering.yml',
+                               data_obj.dt_clustering_ret,
+                               data_obj.dt_clustering_raw,
+                               data_obj.dt_raw_cap)
 
-    # clutering_obj.read_prm()
+    clutering_obj.read_prm()
     # clutering_obj.get_clusters_hac()
     # clutering_obj.get_clusters_dbscan_search()
-    # clutering_obj.get_clusters_dbscan()
+    clutering_obj.get_clusters_dbscan()
 
     # strat_obj = Strat('data_in','data_out','conf_strat.yml',
     #                   data_obj.dt_clustering_raw,
@@ -51,10 +51,10 @@ if __name__ == '__main__':
     # strat_obj.strat_ma()
 
     # Helper.risk_return(data_obj.dt_clustering_ret)
-    ml_pred = MLPred('data_in','data_out','conf_ml.yml',data_obj.dt_ml)
-    ml_pred.read_prm()
-    ml_pred.ml_model()
+    # ml_pred = MLPred('data_in','data_out','conf_ml.yml',data_obj.dt_ml)
+    # ml_pred.read_prm()
+    # ml_pred.ml_model()
 
-    portfolio_obj = Portfolio('data_in','data_out','conf_portfolio.yml',ml_pred.dt_bl)
-    portfolio_obj.read_prm()
-    portfolio_obj.show_frontier()
+    # portfolio_obj = Portfolio('data_in','data_out','conf_portfolio.yml',ml_pred.dt_bl)
+    # portfolio_obj.read_prm()
+    # portfolio_obj.show_frontier_simple()

@@ -74,12 +74,16 @@ class Helper():
     @staticmethod
     def missing_values_table(dff):
         res = round((dff.isnull().sum() * 100/ len(dff)),2).sort_values(ascending=False)
-        df_res = pd.DataFrame()
-        df_res['Missing Value Tickers'] = res.index
-        df_res['Total number of samples'] = len(dff)
-        df_res['Percentage of missing values'] = res.values
-        df_res['Number of missing values'] = len(dff) * df_res['Percentage of missing values'] // 100.0
-        df_res = df_res[df_res['Percentage of missing values'] > 0.0]
+
+        if(isinstance(self.dt_select.columns,pd.MultiIndex) == False):
+            df_res = pd.DataFrame()
+            df_res['Missing Value Tickers'] = res.index
+            df_res['Total number of samples'] = len(dff)
+            df_res['Percentage of missing values'] = res.values
+            df_res['Number of missing values'] = len(dff) * df_res['Percentage of missing values'] // 100.0
+            df_res = df_res[df_res['Percentage of missing values'] > 0.0]
+        else:
+            pass
         return(df_res)
 
     @staticmethod

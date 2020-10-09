@@ -1,5 +1,5 @@
 start_date: '2019-01-02'
-end_date: '2020-01-02'
+end_date: '2020-10-02'
 ohlc: ['Adj Close']
 ohlc_ml: ['Open','High','Low','Close','Adj Close','Volume']
 url_nasdaq: 'https://en.wikipedia.org/wiki/NASDAQ-100'
