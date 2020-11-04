@@ -1,9 +1,9 @@
-start_date: '2019-01-02'
-end_date: '2020-10-02'
-ohlc: ['Adj Close']
+start_date: '2019-10-30'
+end_date: '2020-10-30'
+ohlc: 'Adj Close'
 ohlc_ml: ['Open','High','Low','Close','Adj Close','Volume']
-url_nasdaq: 'https://en.wikipedia.org/wiki/NASDAQ-100'
-url_spx: 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+urls: [ 'https://en.wikipedia.org/wiki/NASDAQ-100', 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies']
+index: 0
 market_cap: 0
 features: ['sharesOutstanding','priceToBook','fiftyDayAverageChange',
           'bookValue','twoHundredDayAverageChange',
@@ -11,6 +11,9 @@ features: ['sharesOutstanding','priceToBook','fiftyDayAverageChange',
           'averageDailyVolume3Month','fiftyDayAverage','marketCap',
           'averageDailyVolume10Day','fiftyDayAverageChangePercent'
           ]
-new_db_tickers: True
-new_db_raw_cap: True
-new_db_raw_prices: True
+fetch_data: 'pdr'
+freq: 'daily'
+new_db_tickers: False
+new_db_raw_cap: False
+new_db_raw_prices: False
+new_db_alphav_prices: False

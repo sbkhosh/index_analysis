@@ -34,15 +34,15 @@ if __name__ == '__main__':
     data_obj.read_prm()
     data_obj.process()
     
-    clutering_obj = Clustering('data_in','data_out','conf_clustering.yml',
-                               data_obj.dt_clustering_ret,
-                               data_obj.dt_clustering_raw,
-                               data_obj.dt_raw_cap)
+    # clutering_obj = Clustering('data_in','data_out','conf_clustering.yml',
+    #                            data_obj.dt_clustering_ret,
+    #                            data_obj.dt_clustering_raw,
+    #                            data_obj.dt_raw_cap)
 
-    clutering_obj.read_prm()
+    # clutering_obj.read_prm()
     # clutering_obj.get_clusters_hac()
     # clutering_obj.get_clusters_dbscan_search()
-    clutering_obj.get_clusters_dbscan()
+    # clutering_obj.get_clusters_dbscan()
 
     # strat_obj = Strat('data_in','data_out','conf_strat.yml',
     #                   data_obj.dt_clustering_raw,
