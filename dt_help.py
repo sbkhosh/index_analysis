@@ -12,11 +12,13 @@ import pandas as pd
 import plotly.graph_objects as go
 import re
 import requests
+import seaborn as sns
 import time
 import yaml
 
 from functools import wraps
 from PyEMD import EMD
+from pylab import rcParams
 from random_user_agent.user_agent import UserAgent
 from random_user_agent.params import SoftwareName, OperatingSystem
 from statsmodels.tsa.stattools import coint
@@ -178,12 +180,12 @@ class Helper():
         df_imfs.columns = ['noise'] + [el for el in df_imfs.columns[1:-2]] + ['trend','raw']
         df_imfs['denoise_detrend'] = df_imfs['raw'] - df_imfs[[el for el in df_imfs.columns if 'imf_' in el]].sum(axis=1)
         df_imfs.insert(0,'Dates',df.index)
-        all_components_emd = df_imfs
-        all_feat_emd = df_imfs[[el for el in df_imfs.columns if 'denoise_' not in el]]
+        # all_components_emd = df_imfs
+        all_feat_emd = df_imfs # [[el for el in df_imfs.columns if 'denoise_' in el]]
         cols = all_feat_emd.columns[1:]
         all_feat_emd.columns = ['Dates'] + [ el + '_' + ticker for el in cols]
         all_feat_emd.set_index('Dates',inplace=True)
-        return(all_feat_emd)
+        return(all_feat_emd[[el for el in all_feat_emd.columns if 'denoise_' in el]])
         
     @staticmethod
     def plot_dataframe(df):
@@ -250,3 +252,87 @@ class Helper():
                 arrowprops = dict(arrowstyle = '->', connectionstyle = 'arc3,rad=0'))
         plt.show()
 
+    @staticmethod
+    def shapiro_test(df):
+        p_value = scipy.stats.shapiro(df['log_return'].dropna())[1]
+        if p_value <= 0.05:
+            return('not_normal')
+        else:
+            return('normal')
+
+    @staticmethod
+    def skew_plt(df0,df1):
+        dates_perf0 = df0.index
+        dates_perf1 = df1.index
+
+        tickers = df0.columns.get_level_values(1)
+        yfmt = mdates.DateFormatter('%Y-%m-%d')
+
+        size = 0.8
+        alignment = 0.075
+        ratio = 0.5
+
+        fig = plt.figure(figsize=(32,20))
+        font = {
+            'family': 'serif',
+            'color':  'darkblue',
+            'weight': 'normal',
+            'size': 7,
+            }
+
+        ax_0 = fig.add_axes([alignment + 0.00 * size, ratio/4, ratio*size, size])
+        ax_1 = fig.add_axes([alignment + 0.60 * size, ratio/4, ratio*size, size])
+        
+        ax_0.clear()
+        ax_1.clear()
+        
+        ax_0.yaxis.set_major_formatter(yfmt)
+        ax_1.yaxis.set_major_formatter(yfmt)
+
+        ax_0.pcolor(df0)
+        ax_1.pcolor(df1)
+
+        ax_0.yaxis_date()
+        ax_1.yaxis_date()
+        
+        ax_0.set_yticks(range(len(dates_perf0)))
+        ax_0.set_yticklabels(dates_perf0.date,fontdict=font)
+        ax_1.set_yticks(range(len(dates_perf1)))
+        ax_1.set_yticklabels(dates_perf1.date,fontdict=font)
+
+        ax_0.set_xticks(range(len(tickers)))
+        ax_0.set_xticklabels(tickers,rotation=90,fontdict=font)
+        ax_1.set_xticks(range(len(tickers)))
+        ax_1.set_xticklabels(tickers,rotation=90,fontdict=font)
+        
+        plt.show()
+
+    @staticmethod
+    def skew_group(df,freq,flag):
+        if(freq=='weekly'):
+            freqs = ['W'] # 'W-MON','W-TUE','W-WED','W-THU','W-FRI','W-SAT','W-SUN'
+        elif(freq=='monthly'):
+            freqs = ['BM'] # BM
+
+        symbs = df[flag].columns
+        attrs = [el+'_skew' for el in freqs]
+        midx = pd.MultiIndex.from_product([attrs,symbs],names=('Attributes', 'Symbols'))
+        
+        data_all = [df[flag].groupby(pd.Grouper(freq=el)).skew() for el in freqs]
+        dt = pd.concat(data_all,axis=1)
+        dt.columns = midx
+        return(dt)
+        
+    @staticmethod
+    def get_denoise_detrend(df,ohlc_ret):
+        df_denoise_detrend = [ Helper.get_imfs_hilbert_ts(df[ohlc_ret],el) for el in df[ohlc_ret].columns ]
+
+        attrs = ['denoise_detrend']
+        symbs = df[ohlc_ret].columns
+        midx = pd.MultiIndex.from_product([attrs,symbs],names=('Attributes', 'Symbols'))
+
+        dt = pd.concat(df_denoise_detrend,axis=1)
+        dt.columns = midx
+        return(dt)
+
+    

@@ -13,6 +13,7 @@ import yaml
 from alpha_vantage.timeseries import TimeSeries
 from datetime import datetime, timedelta
 from dt_help import Helper
+from scipy.stats import norm,shapiro,skew,kurtosis
 from sqlalchemy import create_engine
 
 class HistData():
@@ -101,6 +102,11 @@ class HistData():
                                   columns=pd.MultiIndex.from_product([['log_ret'], self.dt_select[self.ohlc].columns]),
                                   index=self.dt_select.index))
 
+        self.denoise_detrend = Helper.get_denoise_detrend(self.dt_select,'rel_ret')
+        
+        self.dt_skew = [ Helper.skew_group(self.denoise_detrend,'weekly','denoise_detrend'), Helper.skew_group(self.denoise_detrend,'monthly','denoise_detrend') ]
+        Helper.skew_plt(self.dt_skew[0],self.dt_skew[1])
+        
         # isolate dataframes used for the clustering step
         self.dt_clustering_ret = self.dt_select['rel_ret']
         self.dt_clustering_raw = self.dt_select
@@ -203,8 +209,8 @@ class HistData():
             self.dt_raw_prices.columns = self.midx           
             self.dt_select = self.dt_raw_prices[[self.ohlc,'Volume']]
 
-            print(self.dt_raw_prices)
-            print(self.dt_select)
+            # print(self.dt_raw_prices)
+            # print(self.dt_select)
             
         elif(self.fetch_data == 'alphav'):
             self.symbs = ['NVDA','AMZN','TSLA','MRNA','AAPL'] # Helper.nasdaq100_tickers(self.url_nasdaq).index.to_list()
@@ -276,8 +282,8 @@ class HistData():
             elif(self.freq == 'intraday'):
                 self.dt_select = self.dt_raw_prices.loc[:,self.dt_raw_prices.columns.get_level_values(0).isin(['Close','Volume'])]
 
-            print(self.dt_raw_prices)
-            print(self.dt_select)
+            # print(self.dt_raw_prices)
+            # print(self.dt_select)
                 
     def get_info_1d(cum_rets):
         end = np.argmax((np.maximum.accumulate(cum_rets)-cum_rets)/np.maximum.accumulate(cum_rets))
